@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
-//! Reading source in and writing images out: files, stdin/stdout, clipboard.
+//! Reading source in and writing images out: files, stdin/stdout, and the clipboard on the way out.
 
 use std::io::{IsTerminal, Read, Write};
 use std::path::{Path, PathBuf};
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result};
 
 #[derive(Debug, Clone)]
 pub struct Input {
@@ -12,33 +12,37 @@ pub struct Input {
     pub path: Option<PathBuf>,
 }
 
-pub fn read_input(spec: Option<&str>) -> Result<Input> {
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum Source {
+    Stdin,
+    File(PathBuf),
+    None,
+}
+
+fn resolve_source(spec: Option<&str>, stdin_is_tty: bool) -> Source {
     match spec {
-        Some("-") => Ok(Input {
+        Some("-") => Source::Stdin,
+        Some(path) => Source::File(PathBuf::from(path)),
+        None if stdin_is_tty => Source::None,
+        None => Source::Stdin,
+    }
+}
+
+pub fn read_input(spec: Option<&str>) -> Result<Option<Input>> {
+    match resolve_source(spec, std::io::stdin().is_terminal()) {
+        Source::Stdin => Ok(Some(Input {
             source: read_stdin()?,
             path: None,
-        }),
-        Some(path) => {
-            let path = PathBuf::from(path);
+        })),
+        Source::File(path) => {
             let source = std::fs::read_to_string(&path)
                 .with_context(|| format!("failed to read {}", path.display()))?;
-            Ok(Input {
+            Ok(Some(Input {
                 source,
                 path: Some(path),
-            })
+            }))
         }
-        None => {
-            if !std::io::stdin().is_terminal() {
-                return Ok(Input {
-                    source: read_stdin()?,
-                    path: None,
-                });
-            }
-            Ok(Input {
-                source: read_clipboard_text()?,
-                path: None,
-            })
-        }
+        Source::None => Ok(None),
     }
 }
 
@@ -48,17 +52,6 @@ fn read_stdin() -> Result<String> {
         .read_to_string(&mut buf)
         .context("failed to read stdin")?;
     Ok(buf)
-}
-
-fn read_clipboard_text() -> Result<String> {
-    let mut clipboard = arboard::Clipboard::new().context("failed to open the clipboard")?;
-    let text = clipboard
-        .get_text()
-        .context("the clipboard does not contain text")?;
-    if text.trim().is_empty() {
-        bail!("the clipboard is empty; pass a file, or `-` to read stdin");
-    }
-    Ok(text)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -175,6 +168,25 @@ mod tests {
     }
 
     #[test]
+    fn a_dash_and_a_piped_stdin_both_mean_stdin() {
+        assert_eq!(resolve_source(Some("-"), true), Source::Stdin);
+        assert_eq!(resolve_source(None, false), Source::Stdin);
+    }
+
+    #[test]
+    fn a_path_names_a_file() {
+        assert_eq!(
+            resolve_source(Some("src/Feed.swift"), true),
+            Source::File(PathBuf::from("src/Feed.swift"))
+        );
+    }
+
+    #[test]
+    fn nothing_at_a_terminal_is_no_input_rather_than_the_clipboard() {
+        assert_eq!(resolve_source(None, true), Source::None);
+    }
+
+    #[test]
     fn reading_a_missing_file_is_an_error_naming_the_path() {
         let err = read_input(Some("/nonexistent/snapcode/x.swift")).unwrap_err();
         assert!(
@@ -187,7 +199,9 @@ mod tests {
     fn reads_a_file_and_keeps_its_path() {
         let path = std::env::temp_dir().join("snapcode-io-read.swift");
         std::fs::write(&path, "let x = 1\n").unwrap();
-        let input = read_input(path.to_str()).unwrap();
+        let input = read_input(path.to_str())
+            .unwrap()
+            .expect("a path names an input");
         assert_eq!(input.source, "let x = 1\n");
         assert_eq!(input.path.as_deref(), Some(path.as_path()));
         let _ = std::fs::remove_file(&path);

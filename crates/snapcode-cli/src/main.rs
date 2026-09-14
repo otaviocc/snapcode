@@ -2,6 +2,7 @@
 //! `snapcode` — render code snippets to images, from the shell or a TUI.
 
 mod cli;
+mod editor;
 mod io;
 mod settings;
 mod tui;
@@ -46,7 +47,7 @@ fn run(cli: Cli) -> Result<()> {
     }
 }
 
-fn prepare(args: &RenderArgs) -> Result<(RenderConfig, Renderer, io::Input)> {
+fn prepare(args: &RenderArgs) -> Result<(RenderConfig, Renderer, Option<io::Input>)> {
     let mut config = settings::load(args.config.as_deref(), args.no_config)?;
     args.apply(&mut config)?;
 
@@ -63,13 +64,17 @@ fn prepare(args: &RenderArgs) -> Result<(RenderConfig, Renderer, io::Input)> {
 
 fn render(args: &RenderArgs) -> Result<()> {
     let (config, renderer, input) = prepare(args)?;
+    let input = input.context(
+        "no input: pass a file, `-` to read stdin, \
+         or run `snapcode tui` to compose a snippet in $EDITOR",
+    )?;
     render_once(&config, &renderer, &input, args)?;
 
     if args.watch {
         let path = input
             .path
             .clone()
-            .context("--watch needs a file to watch; it cannot watch stdin or the clipboard")?;
+            .context("--watch needs a file to watch; it cannot watch stdin")?;
         watch(&path, &config, &renderer, args)?;
     }
     Ok(())

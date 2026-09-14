@@ -42,7 +42,7 @@ type Backend = ratatui::backend::CrosstermBackend<Stdout>;
 pub fn run(
     config: RenderConfig,
     renderer: Renderer,
-    input: Input,
+    input: Option<Input>,
     args: &RenderArgs,
 ) -> Result<()> {
     if !std::io::stdin().is_terminal() || !std::io::stdout().is_terminal() {
@@ -73,17 +73,25 @@ pub fn run(
     result
 }
 
-fn enter_terminal() -> Result<Terminal<Backend>> {
+fn enter_screen() -> Result<()> {
     enable_raw_mode().context("failed to enable raw mode")?;
-    let mut stdout = std::io::stdout();
-    execute!(stdout, EnterAlternateScreen).context("failed to enter the alternate screen")?;
-    Terminal::new(ratatui::backend::CrosstermBackend::new(stdout))
+    execute!(std::io::stdout(), EnterAlternateScreen)
+        .context("failed to enter the alternate screen")
+}
+
+fn leave_screen() {
+    disable_raw_mode().ok();
+    execute!(std::io::stdout(), LeaveAlternateScreen).ok();
+}
+
+fn enter_terminal() -> Result<Terminal<Backend>> {
+    enter_screen()?;
+    Terminal::new(ratatui::backend::CrosstermBackend::new(std::io::stdout()))
         .context("failed to initialize the terminal")
 }
 
 fn restore_terminal(terminal: &mut Terminal<Backend>) -> Result<()> {
-    disable_raw_mode().ok();
-    execute!(terminal.backend_mut(), LeaveAlternateScreen).ok();
+    leave_screen();
     terminal.show_cursor().ok();
     Ok(())
 }
@@ -110,6 +118,8 @@ struct App {
     error: Option<String>,
     status: Option<(String, Instant)>,
     show_help: bool,
+    pending_edit: bool,
+    edited: bool,
     quit: bool,
     print_on_exit: Option<String>,
 }
@@ -118,7 +128,7 @@ impl App {
     fn new(
         config: RenderConfig,
         renderer: Renderer,
-        input: Input,
+        input: Option<Input>,
         args: RenderArgs,
         image_picker: ImagePicker,
     ) -> Self {
@@ -146,7 +156,10 @@ impl App {
         Self {
             config,
             renderer,
-            input,
+            input: input.unwrap_or_else(|| Input {
+                source: String::new(),
+                path: None,
+            }),
             args,
             image_picker,
             chrome_themes,
@@ -163,6 +176,8 @@ impl App {
             error: None,
             status: None,
             show_help: false,
+            pending_edit: false,
+            edited: false,
             quit: false,
             print_on_exit: None,
         }
@@ -183,6 +198,10 @@ impl App {
                         self.handle_key(key);
                     }
                 }
+            }
+            if self.pending_edit {
+                self.pending_edit = false;
+                self.edit_snippet(terminal)?;
             }
             if let Some((_, at)) = &self.status {
                 if at.elapsed() > STATUS_TTL {
@@ -229,6 +248,7 @@ impl App {
             KeyCode::Char('s') => self.save_config(),
             KeyCode::Char('p') => self.print_command(),
             KeyCode::Char('r') => self.reload_input(),
+            KeyCode::Char('i') => self.pending_edit = true,
             _ => {}
         }
     }
@@ -321,8 +341,19 @@ impl App {
         self.palette = build_palette(&self.renderer, &self.config);
     }
 
+    fn is_empty(&self) -> bool {
+        self.input.source.trim().is_empty()
+    }
+
     fn refresh_preview(&mut self) {
         self.refresh_palette();
+
+        if self.is_empty() {
+            self.error = None;
+            self.preview = None;
+            self.export_size = None;
+            return;
+        }
 
         let mut preview_config = self.config.clone();
         preview_config.scale = PREVIEW_SCALE;
@@ -374,7 +405,59 @@ impl App {
         Ok(self.renderer.render_raster(&request)?)
     }
 
+    fn scratch_language(&self) -> &str {
+        self.config
+            .code
+            .language
+            .as_deref()
+            .filter(|l| !l.trim().is_empty())
+            .unwrap_or(&self.detected_language)
+    }
+
+    fn edit_snippet(&mut self, terminal: &mut Terminal<Backend>) -> Result<()> {
+        let extension = crate::editor::scratch_extension(
+            &self.renderer,
+            self.input.path.as_deref(),
+            self.scratch_language(),
+        );
+
+        leave_screen();
+        let edited = crate::editor::edit(&self.input.source, &extension);
+        enter_screen()?;
+        terminal.clear()?;
+
+        self.preview = None;
+        self.dirty = true;
+
+        match edited {
+            Ok(source) => {
+                if source == self.input.source {
+                    self.set_status(
+                        "the snippet is unchanged; if your editor detaches, \
+                         set EDITOR to wait (for example `code --wait`)"
+                            .into(),
+                    );
+                    return Ok(());
+                }
+                let empty = source.trim().is_empty();
+                self.input.source = source;
+                self.edited = true;
+                self.set_status(if empty {
+                    "the snippet is empty; press i to write one".into()
+                } else {
+                    "snippet updated".into()
+                });
+            }
+            Err(error) => self.set_status(format!("edit failed: {error:#}")),
+        }
+        Ok(())
+    }
+
     fn export(&mut self) {
+        if self.is_empty() {
+            self.set_status("nothing to render yet; press i to add a snippet".into());
+            return;
+        }
         match self.write_export() {
             Ok(message) => self.set_status(message),
             Err(error) => self.set_status(format!("export failed: {error:#}")),
@@ -402,6 +485,10 @@ impl App {
     }
 
     fn copy(&mut self) {
+        if self.is_empty() {
+            self.set_status("nothing to render yet; press i to add a snippet".into());
+            return;
+        }
         let result = self.render_with(&self.config).and_then(|raster| {
             crate::io::copy_image_to_clipboard(raster.width, raster.height, &raster.pixels)
         });
@@ -426,8 +513,9 @@ impl App {
     fn equivalent_command(&self) -> String {
         let mut parts = vec!["snapcode".to_string()];
         let mut unrepresentable: Vec<&str> = Vec::new();
-        if let Some(path) = &self.input.path {
-            parts.push(shell_quote(&path.to_string_lossy()));
+        match &self.input.path {
+            Some(path) if !self.edited => parts.push(shell_quote(&path.to_string_lossy())),
+            _ => parts.push("-".to_string()),
         }
 
         let default = RenderConfig::default();
@@ -529,15 +617,19 @@ impl App {
                 Field::TrafficLights.value(config, &self.context()),
             );
         }
-        let command = parts.join(" ");
-        if unrepresentable.is_empty() {
-            command
-        } else {
-            format!(
+        let mut command = parts.join(" ");
+        if !unrepresentable.is_empty() {
+            command = format!(
                 "{command}\n# not expressible as flags, kept only in the config: {}",
                 unrepresentable.join(", ")
-            )
+            );
         }
+        if parts.get(1).is_some_and(|operand| operand == "-") {
+            command = format!(
+                "{command}\n# reads the snippet on stdin: this one was written here, not in a file"
+            );
+        }
+        command
     }
 
     fn reload_input(&mut self) {
@@ -547,9 +639,15 @@ impl App {
         };
         match std::fs::read_to_string(&path) {
             Ok(source) => {
+                let discarded = self.edited && source != self.input.source;
                 self.input.source = source;
+                self.edited = false;
                 self.dirty = true;
-                self.set_status(format!("reloaded {}", path.display()));
+                self.set_status(if discarded {
+                    format!("reloaded {}, discarding your edits", path.display())
+                } else {
+                    format!("reloaded {}", path.display())
+                });
             }
             Err(error) => self.set_status(format!("reload failed: {error}")),
         }
@@ -699,6 +797,16 @@ impl App {
         let inner = block.inner(area);
         frame.render_widget(block, area);
 
+        if self.is_empty() {
+            frame.render_widget(
+                Paragraph::new("no snippet yet \u{2014} press i to open $EDITOR")
+                    .style(self.palette.label())
+                    .wrap(Wrap { trim: true }),
+                inner,
+            );
+            return;
+        }
+
         if let Some(error) = &self.error {
             frame.render_widget(
                 Paragraph::new(error.as_str())
@@ -839,6 +947,7 @@ impl App {
                     ),
                     ("e", "export"),
                     ("c", "copy"),
+                    ("i", "edit"),
                     ("s", "save"),
                     ("p", "print cmd"),
                     ("r", "reload"),
@@ -862,7 +971,7 @@ impl App {
 }
 
 fn draw_help(frame: &mut Frame, palette: &Palette) {
-    let area = centered_rect(58, 19, frame.area());
+    let area = centered_rect(58, 20, frame.area());
     frame.render_widget(Clear, area);
 
     let key = |k: &'static str, what: &'static str| {
@@ -892,6 +1001,7 @@ fn draw_help(frame: &mut Frame, palette: &Palette) {
         heading(" DO"),
         key("e", "export a PNG"),
         key("c", "copy the image to the clipboard"),
+        key("i", "edit the snippet in $EDITOR"),
         key("s", "save these settings as the default"),
         key("p", "quit and print the equivalent command"),
         key("r", "reload the source file"),

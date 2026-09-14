@@ -29,10 +29,10 @@ cargo install --path crates/snapcode-cli
 snapcode [INPUT] [-o OUTPUT] [FLAGS]
 ```
 
-`INPUT` is a file, `-` for stdin, or omitted to read the clipboard. A piped
-stdin is detected automatically. `OUTPUT` defaults to the input name with a new
-extension; `-` writes to stdout, leaving progress on stderr so the pipe stays
-clean.
+`INPUT` is a file or `-` for stdin; a piped stdin is detected automatically.
+snapcode never reads your clipboard on its own — to render what is on it, pipe
+it in explicitly. `OUTPUT` defaults to the input name with a new extension; `-`
+writes to stdout, leaving progress on stderr so the pipe stays clean.
 
 ```sh
 snapcode main.rs                             # -> main.png
@@ -71,6 +71,11 @@ snapcode main.rs --watch                     # re-render on every save
 
 `snapcode tui FILE` opens a settings form beside a live preview of the real
 image — the same renderer the CLI uses, so what you see is what you export.
+Without a FILE it starts empty; press `i` to open `$EDITOR`, paste a snippet,
+and save. `i` works with a file too — it edits a temp copy, so your file is
+never written to. A GUI editor must be told to wait (`EDITOR='code --wait'`,
+`EDITOR='subl -w'`); one that returns immediately hands back an unchanged
+snippet, and snapcode says so rather than claiming an update.
 
 ```text
 j / k, ↓ / ↑     move between settings      e   export a PNG
@@ -78,6 +83,7 @@ h / l, ← / →     adjust the selection       c   copy to the clipboard
 space            toggle a boolean           s   save as your defaults
 enter, /         search a long list         p   quit, printing the equivalent command
 g / G            first / last setting       r   reload the source file
+                                            i   edit the snippet in $EDITOR
 ```
 
 Settings are grouped into THEME, CODE, TYPE and WINDOW. Most are stepped with

@@ -118,6 +118,12 @@ impl Highlighter {
         Ok(self.syntaxes.find_syntax_plain_text())
     }
 
+    pub fn primary_extension(&self, language: &str) -> Option<&str> {
+        self.find_by_hint(language)
+            .and_then(|s| s.file_extensions.first())
+            .map(String::as_str)
+    }
+
     fn find_by_hint(&self, hint: &str) -> Option<&SyntaxReference> {
         self.syntaxes
             .find_syntax_by_name(hint)
@@ -398,5 +404,13 @@ mod tests {
         );
         assert!(names.contains(&"Swift"));
         assert!(names.windows(2).all(|w| w[0] <= w[1]), "not sorted");
+    }
+
+    #[test]
+    fn a_language_name_resolves_to_a_file_extension() {
+        let (hl, _) = setup();
+        assert_eq!(hl.primary_extension("Swift"), Some("swift"));
+        assert_eq!(hl.primary_extension("rust"), Some("rs"));
+        assert_eq!(hl.primary_extension("Nonsense Lang"), None);
     }
 }

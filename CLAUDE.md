@@ -61,6 +61,23 @@ source -> syntect highlight -> cosmic-text shape -> compose a Scene -> raster | 
   syntax themes are picked independently, so a light window can carry a dark
   theme's pastels; every color is held to a WCAG contrast ratio against the
   background it will sit on, and a test walks all ~100 pairings.
+- `editor.rs` hands the snippet to `$EDITOR` and takes the text back. It always
+  edits a *temp copy* seeded from the in-memory buffer, never the user's input
+  file — the TUI is a renderer, not an editor of your sources. The TUI reads no
+  clipboard: `io.rs` resolves input to a file, stdin, or nothing, and nothing
+  reaches into the clipboard on the way in. `--copy` and the TUI's `c` still
+  write to it, because those are asked for.
+- Suspending the TUI (`App::edit_snippet`) must leave and re-enter the alternate
+  screen in a balanced pair on *every* path, including a failed editor, or the
+  user is stranded in raw mode. Afterwards `self.preview` is dropped, not
+  reused: a kitty/iterm2 `StatefulProtocol` holds placements that the screen
+  churn invalidates, so it has to be rebuilt. Do not "drain leftover keystrokes"
+  there with a `while event::poll(ZERO) { event::read() }` loop: `poll` reports
+  ready on a *partial* escape sequence and `read` then blocks forever waiting
+  for the rest, which hangs the TUI at 0% CPU with no way out. An edit that comes back byte-identical
+  is reported as unchanged, not as an update: a GUI `$EDITOR` without a wait flag
+  exits instantly, and claiming success there would be a lie the user only
+  discovers after the temp file is gone.
 - `tui/preview.rs` resolves the terminal's image protocol from environment
   variables and a `TIOCGWINSZ` ioctl, never by querying over stdin.
   `ratatui-image`'s stdio query leaves a reader thread blocked on stdin when a

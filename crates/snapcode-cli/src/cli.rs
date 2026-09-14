@@ -57,7 +57,7 @@ pub enum Format {
 
 #[derive(Debug, Clone, Default, Args)]
 pub struct RenderArgs {
-    #[arg(help = "Input file, or `-` for stdin. Omit to read the clipboard")]
+    #[arg(help = "Input file, or `-` for stdin")]
     pub input: Option<String>,
 
     #[arg(
