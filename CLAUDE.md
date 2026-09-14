@@ -1,0 +1,104 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+`snapcode` renders a code snippet to an image: a syntax-highlighted window on a
+background, as PNG or SVG. One cross-platform binary that is both a scriptable
+CLI and a TUI with a live in-terminal preview. It replaces a Python/Pillow
+script that used to live in `otaviocc/dotfiles`'s
+`claude/.claude/skills/code-snippet-image/`; that skill now shells out to this
+binary. See `README.md` for the user-facing flag reference.
+
+## Commands
+
+```sh
+make check                              # fmt-check + lint + lint-md + test: the pre-commit gate
+make build                              # cargo build --workspace
+make test                               # cargo test --workspace
+make test-render                        # only tests/render.rs and tests/svg_parity.rs
+make lint                               # cargo clippy --workspace --all-targets -- -D warnings
+make run ARGS="snippet.swift --line-numbers"
+make tui FILE=snippet.swift
+make install                            # cargo install --path crates/snapcode-cli --locked --force
+```
+
+Run one test: `cargo test -p snapcode-core --test render traffic_lights`, or
+`cargo test -p snapcode-cli fields::` for a unit-test module.
+
+## Architecture
+
+Two crates. `snapcode-core` is the renderer and has no CLI or TUI dependencies;
+`snapcode-cli` is the binary. The pipeline is:
+
+```text
+source -> syntect highlight -> cosmic-text shape -> compose a Scene -> raster | svg
+```
+
+- `scene.rs` is the load-bearing idea. Composition produces a flat list of
+  drawing primitives, and `backend/raster.rs` (tiny-skia) and `backend/svg.rs`
+  are two renderers *of that one scene*, not two parallel drawing paths.
+  `tests/svg_parity.rs` rasterizes the SVG with `resvg` and diffs it against the
+  PNG, so a change to one backend that forgets the other fails there.
+- `compose.rs` owns all geometry and sizes the window to its content, so callers
+  never pass image dimensions. Its base measurements (30 padding, 50 titlebar,
+  10 radius, traffic lights of radius 6 inset by 20) are inherited from the
+  Python script so a default render stays recognizable; all are configurable and
+  every value is multiplied by `config.scale` on the way to pixels.
+- `layout.rs` measures with shaped glyph *advances*, never ink bounding boxes.
+  An ink box drops leading and trailing whitespace, which collapses the
+  indentation that makes code readable. Do not "simplify" this to a bbox call.
+- `font.rs` embeds JetBrains Mono so a default render is byte-identical across
+  machines. System fonts are still loaded for fallback (CJK, emoji).
+  `FontStack::split` exists because `set_rich_text` needs `&mut FontSystem`
+  while the `Attrs` it consumes borrow the family name.
+- `theme.rs` has two independent axes: a chrome theme (`.toml`, window frame)
+  and a syntax theme (`.tmTheme`). `resolve_color` resolves the terminal-only
+  encodings that `ansi`/`base16` use — they store an ANSI palette index in the
+  red channel, which renders as invisible text if taken at face value.
+- `highlight.rs` wraps `two-face`'s syntax set (~220 languages), not syntect's
+  bundled 75, which has no Swift.
+- `tui/palette.rs` derives the TUI's colors from the selected theme. Chrome and
+  syntax themes are picked independently, so a light window can carry a dark
+  theme's pastels; every color is held to a WCAG contrast ratio against the
+  background it will sit on, and a test walks all ~100 pairings.
+- `tui/preview.rs` resolves the terminal's image protocol from environment
+  variables and a `TIOCGWINSZ` ioctl, never by querying over stdin.
+  `ratatui-image`'s stdio query leaves a reader thread blocked on stdin when a
+  terminal does not answer within its timeout; that thread then competes with
+  the event loop and swallows roughly every other keystroke. Do not replace this
+  with `Picker::from_query_stdio`.
+
+## Code conventions
+
+- **No comments in Rust.** A file may carry a single `//!` line saying what it
+  is, for navigation. Nothing else: no `///`, no `//`. Put the explanation in
+  the commit message, or in this file's Architecture section.
+- The one exception is `clap` in `cli.rs`: use `#[arg(help = "...")]` and
+  `#[command(about = "...")]`, never a `///` doc comment. clap reads doc
+  comments as `--help` text, so a `///` there is functional rather than
+  narrative — and stripping them silently empties `--help`.
+  `every_argument_and_subcommand_documents_itself` guards this.
+- Every `.rs` file starts with `// SPDX-License-Identifier: MIT` as its first
+  line, above the `//!` line.
+- CLI flags are `Option<T>` so an unset flag defers to the config file rather
+  than a clap default silently overwriting it. Config precedence is built-in
+  defaults -> `~/.config/snapcode/config.toml` -> `./snapcode.toml` -> flags,
+  and each layer overrides only the fields it names (`settings.rs::merge`).
+- An `Option` field that can be switched off needs an explicit disabled value in
+  TOML, not `None`. TOML has no null, so serde omits a `None` and
+  `#[serde(default)]` then restores the *enabled* default on read-back, which
+  silently loses the setting. `shadow` and `window.titlebar-height` serialize as
+  `false` when off (see `config.rs`'s `disableable_*` modules); any new
+  switchable field needs the same treatment.
+
+## Verifying a rendering change
+
+A layout bug still produces a perfectly valid PNG, so `cargo test` alone proves
+little. `tests/render.rs` asserts on actual pixels: that geometry lands where
+the layout says, that known points carry the theme's colors, and that two
+renders are byte-identical. It uses `Renderer::hermetic()`, which skips system
+fonts so results never depend on the host — use it for any new rendering test.
+
+When sampling a pixel to check a line decoration, aim between the band's left
+edge (`window.x + padding/2`) and where text starts (`window.x + padding`);
+anywhere else and you are measuring a glyph or the margin.

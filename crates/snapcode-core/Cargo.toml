@@ -1,0 +1,27 @@
+[package]
+name = "snapcode-core"
+description = "Renders syntax-highlighted code snippets into images."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+anyhow = "1.0.104"
+cosmic-text = "0.17.0"
+image = { version = "0.25.9", default-features = false, features = ["png", "jpeg", "webp"] }
+png = "0.18.1"
+serde = { version = "1.0.229", features = ["derive"] }
+swash = "0.2.10"
+syntect = { version = "5.3.0", default-features = false, features = ["default-fancy"] }
+thiserror = "2.0.20"
+tiny-skia = "0.12.0"
+toml = "1.1.6"
+two-face = "0.5.2"
+zeno = "0.3.3"
+
+[dev-dependencies]
+resvg = "0.48.1"
+usvg = "0.48.1"

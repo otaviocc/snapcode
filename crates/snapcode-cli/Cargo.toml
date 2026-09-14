@@ -1,0 +1,34 @@
+[package]
+name = "snapcode-cli"
+description = "CLI and TUI for rendering code snippets into images."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "snapcode"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1.0.104"
+arboard = { version = "3.6.1", features = ["image-data"] }
+clap = { version = "4.6.4", features = ["derive"] }
+clap_complete = "4.6.10"
+crossterm = "0.29.0"
+directories = "6.0.0"
+image = { version = "0.25.9", default-features = false }
+notify = "8.2.0"
+ratatui = "0.29.0"
+ratatui-image = "8.0.1"
+serde = { version = "1.0.229", features = ["derive"] }
+snapcode-core.workspace = true
+thiserror = "2.0.20"
+toml = "1.1.6"
+
+[dev-dependencies]
+assert_cmd = "2.2.2"
+predicates = "3.1.4"
+tempfile = "3.27.0"

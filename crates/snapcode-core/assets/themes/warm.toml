@@ -1,0 +1,20 @@
+# The palette ported verbatim from the original Python code-snippet-image script,
+# so output stays recognizable after the move to Rust.
+name = "warm"
+syntax-theme = "warm"
+
+window = "#1a1a1a"
+titlebar = "#2d2d2d"
+border = "#ffffff14"
+gutter = "#B1ADA1"
+gutter-separator = "#ffffff12"
+title-text = "#B1ADA1"
+traffic-lights = ["#C15F3C", "#D4763F", "#E89142"]
+shadow = "#00000096"
+line-emphasis = "#ffffff0d"
+diff-added = "#87C38F26"
+diff-removed = "#C15F3C26"
+
+[background]
+kind = "solid"
+color = "#C15F3C"

@@ -1,0 +1,22 @@
+name = "midnight"
+syntax-theme = "base16-ocean.dark"
+
+window = "#0f1419"
+titlebar = "#161b22"
+border = "#ffffff1a"
+gutter = "#4b5563"
+gutter-separator = "#ffffff12"
+title-text = "#8b949e"
+traffic-lights = ["#ff5f57", "#febc2e", "#28c840"]
+shadow = "#000000b4"
+line-emphasis = "#ffffff0f"
+diff-added = "#28c84026"
+diff-removed = "#ff5f5726"
+
+[background]
+kind = "linear"
+angle = 135.0
+stops = [
+  { offset = 0.0, color = "#1e3a8a" },
+  { offset = 1.0, color = "#701a75" },
+]

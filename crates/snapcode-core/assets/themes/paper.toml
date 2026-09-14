@@ -1,0 +1,18 @@
+name = "paper"
+syntax-theme = "InspiredGitHub"
+
+window = "#ffffff"
+titlebar = "#f1f3f5"
+border = "#00000014"
+gutter = "#adb5bd"
+gutter-separator = "#00000012"
+title-text = "#6c757d"
+traffic-lights = ["#ff5f57", "#febc2e", "#28c840"]
+shadow = "#0000004d"
+line-emphasis = "#0000000a"
+diff-added = "#28c84021"
+diff-removed = "#ff5f5721"
+
+[background]
+kind = "solid"
+color = "#e9ecef"
