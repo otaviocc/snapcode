@@ -1,0 +1,19 @@
+# Colors from Ethan Schoonover's Solarized palette.
+name = "solarized-dark"
+syntax-theme = "Solarized (dark)"
+
+window = "#002b36"
+titlebar = "#073642"
+border = "#ffffff1a"
+gutter = "#586e75"
+gutter-separator = "#ffffff12"
+title-text = "#93a1a1"
+traffic-lights = ["#dc322f", "#b58900", "#859900"]
+shadow = "#000000b4"
+line-emphasis = "#ffffff0f"
+diff-added = "#85990026"
+diff-removed = "#dc322f26"
+
+[background]
+kind = "solid"
+color = "#268bd2"

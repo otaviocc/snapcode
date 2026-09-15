@@ -1,0 +1,23 @@
+# Colors from the Dracula palette (draculatheme.com).
+name = "dracula"
+syntax-theme = "Dracula"
+
+window = "#282a36"
+titlebar = "#343746"
+border = "#ffffff1a"
+gutter = "#6272a4"
+gutter-separator = "#ffffff12"
+title-text = "#6272a4"
+traffic-lights = ["#ff5555", "#f1fa8c", "#50fa7b"]
+shadow = "#000000b4"
+line-emphasis = "#ffffff0f"
+diff-added = "#50fa7b26"
+diff-removed = "#ff555526"
+
+[background]
+kind = "linear"
+angle = 135.0
+stops = [
+  { offset = 0.0, color = "#bd93f9" },
+  { offset = 1.0, color = "#ff79c6" },
+]

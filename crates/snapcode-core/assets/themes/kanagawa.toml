@@ -1,0 +1,23 @@
+# Colors from the Kanagawa wave palette.
+name = "kanagawa"
+syntax-theme = "kanagawa"
+
+window = "#1f1f28"
+titlebar = "#2a2a37"
+border = "#ffffff1a"
+gutter = "#727169"
+gutter-separator = "#ffffff12"
+title-text = "#938aa9"
+traffic-lights = ["#e46876", "#e6c384", "#98bb6c"]
+shadow = "#000000b4"
+line-emphasis = "#ffffff0f"
+diff-added = "#98bb6c26"
+diff-removed = "#e4687626"
+
+[background]
+kind = "linear"
+angle = 135.0
+stops = [
+  { offset = 0.0, color = "#2d4f67" },
+  { offset = 1.0, color = "#957fb8" },
+]

@@ -52,7 +52,13 @@ source -> syntect highlight -> cosmic-text shape -> compose a Scene -> raster | 
   `FontStack::split` exists because `set_rich_text` needs `&mut FontSystem`
   while the `Attrs` it consumes borrow the family name.
 - `theme.rs` has two independent axes: a chrome theme (`.toml`, window frame)
-  and a syntax theme (`.tmTheme`). `resolve_color` resolves the terminal-only
+  and a syntax theme (`.tmTheme`). Every chrome theme names the syntax theme it
+  was built around, and `config.syntax_theme` defaults to the *empty string* so
+  that pairing is what renders; a non-empty value overrides it. Do not give it a
+  concrete default — that silently pins one palette onto all sixteen frames.
+  A built-in theme's file stem, its `name` field and its key in `BUILTIN_CHROME`
+  must all match, and `load_dir` keys user themes by stem for the same reason.
+  `resolve_color` resolves the terminal-only
   encodings that `ansi`/`base16` use — they store an ANSI palette index in the
   red channel, which renders as invisible text if taken at face value.
 - `highlight.rs` wraps `two-face`'s syntax set (~220 languages), not syntect's

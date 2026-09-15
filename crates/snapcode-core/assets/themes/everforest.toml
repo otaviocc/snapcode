@@ -1,0 +1,19 @@
+# Colors from the Everforest dark medium palette.
+name = "everforest"
+syntax-theme = "everforest"
+
+window = "#2d353b"
+titlebar = "#343f44"
+border = "#ffffff1a"
+gutter = "#859289"
+gutter-separator = "#ffffff12"
+title-text = "#9da9a0"
+traffic-lights = ["#e67e80", "#dbbc7f", "#a7c080"]
+shadow = "#000000b4"
+line-emphasis = "#ffffff0f"
+diff-added = "#a7c08026"
+diff-removed = "#e67e8026"
+
+[background]
+kind = "solid"
+color = "#7fbbb3"

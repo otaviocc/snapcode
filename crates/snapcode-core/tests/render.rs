@@ -408,3 +408,27 @@ fn an_invalid_config_is_reported_before_any_work_happens() {
         .render_raster(&RenderRequest::new(SWIFT, &config))
         .is_err());
 }
+
+#[test]
+fn an_unset_syntax_theme_follows_the_chrome_theme() {
+    let mut paired = RenderConfig::default();
+    paired.theme = "dracula".into();
+    assert!(paired.syntax_theme.is_empty(), "the default must be unset");
+
+    let mut explicit = paired.clone();
+    explicit.syntax_theme = "Dracula".into();
+
+    let mut other = paired.clone();
+    other.syntax_theme = "warm".into();
+
+    assert_eq!(
+        render(&paired, SWIFT).pixels,
+        render(&explicit, SWIFT).pixels,
+        "an unset syntax theme should render as the theme's own pairing"
+    );
+    assert_ne!(
+        render(&paired, SWIFT).pixels,
+        render(&other, SWIFT).pixels,
+        "an explicit syntax theme should still win"
+    );
+}

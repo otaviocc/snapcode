@@ -1,0 +1,23 @@
+# Colors from the Tokyo Night palette.
+name = "tokyo-night"
+syntax-theme = "tokyo-night"
+
+window = "#1a1b26"
+titlebar = "#24283b"
+border = "#ffffff1a"
+gutter = "#565f89"
+gutter-separator = "#ffffff12"
+title-text = "#787c99"
+traffic-lights = ["#f7768e", "#e0af68", "#9ece6a"]
+shadow = "#000000b4"
+line-emphasis = "#ffffff0f"
+diff-added = "#9ece6a26"
+diff-removed = "#f7768e26"
+
+[background]
+kind = "linear"
+angle = 135.0
+stops = [
+  { offset = 0.0, color = "#3d59a1" },
+  { offset = 1.0, color = "#bb9af7" },
+]

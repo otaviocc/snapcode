@@ -90,7 +90,10 @@ pub struct RenderArgs {
     #[arg(long, help = "Chrome theme (window, titlebar, background)")]
     pub theme: Option<String>,
 
-    #[arg(long, help = "Syntax theme")]
+    #[arg(
+        long,
+        help = "Syntax theme; defaults to the one the chrome theme is paired with"
+    )]
     pub syntax_theme: Option<String>,
 
     #[arg(long, help = "Font family. Defaults to the embedded JetBrains Mono")]

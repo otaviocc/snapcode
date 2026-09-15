@@ -1,0 +1,19 @@
+# Colors from GitHub's light interface palette.
+name = "github-light"
+syntax-theme = "GitHub"
+
+window = "#ffffff"
+titlebar = "#f6f8fa"
+border = "#00000014"
+gutter = "#8c959f"
+gutter-separator = "#00000012"
+title-text = "#57606a"
+traffic-lights = ["#cf222e", "#bf8700", "#2da44e"]
+shadow = "#0000004d"
+line-emphasis = "#0000000a"
+diff-added = "#2da44e21"
+diff-removed = "#cf222e21"
+
+[background]
+kind = "solid"
+color = "#d0d7de"

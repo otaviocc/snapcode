@@ -1,0 +1,23 @@
+# Colors from the Rose Pine palette (rosepinetheme.com).
+name = "rose-pine"
+syntax-theme = "rose-pine"
+
+window = "#191724"
+titlebar = "#1f1d2e"
+border = "#ffffff1a"
+gutter = "#6e6a86"
+gutter-separator = "#ffffff12"
+title-text = "#908caa"
+traffic-lights = ["#eb6f92", "#f6c177", "#9ccfd8"]
+shadow = "#000000b4"
+line-emphasis = "#ffffff0f"
+diff-added = "#f6c17726"
+diff-removed = "#eb6f9226"
+
+[background]
+kind = "linear"
+angle = 135.0
+stops = [
+  { offset = 0.0, color = "#403d52" },
+  { offset = 1.0, color = "#c4a7e7" },
+]

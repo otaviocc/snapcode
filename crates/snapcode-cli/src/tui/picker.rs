@@ -4,6 +4,7 @@
 use super::fields::Field;
 
 pub const AUTOMATIC: &str = "(automatic)";
+pub const PAIRED: &str = "(paired)";
 
 #[derive(Debug, Clone)]
 pub struct Picker {

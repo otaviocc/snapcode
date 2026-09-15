@@ -1,0 +1,23 @@
+# Colors from the Catppuccin Mocha palette (catppuccin.com).
+name = "catppuccin-mocha"
+syntax-theme = "Catppuccin Mocha"
+
+window = "#1e1e2e"
+titlebar = "#313244"
+border = "#ffffff1a"
+gutter = "#6c7086"
+gutter-separator = "#ffffff12"
+title-text = "#9399b2"
+traffic-lights = ["#f38ba8", "#f9e2af", "#a6e3a1"]
+shadow = "#000000b4"
+line-emphasis = "#ffffff0f"
+diff-added = "#a6e3a126"
+diff-removed = "#f38ba826"
+
+[background]
+kind = "linear"
+angle = 135.0
+stops = [
+  { offset = 0.0, color = "#89b4fa" },
+  { offset = 1.0, color = "#cba6f7" },
+]

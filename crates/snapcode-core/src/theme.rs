@@ -170,9 +170,61 @@ const BUILTIN_CHROME: &[(&str, &str)] = &[
     ("warm", include_str!("../assets/themes/warm.toml")),
     ("midnight", include_str!("../assets/themes/midnight.toml")),
     ("paper", include_str!("../assets/themes/paper.toml")),
+    ("dracula", include_str!("../assets/themes/dracula.toml")),
+    ("nord", include_str!("../assets/themes/nord.toml")),
+    ("gruvbox", include_str!("../assets/themes/gruvbox.toml")),
+    (
+        "solarized-dark",
+        include_str!("../assets/themes/solarized-dark.toml"),
+    ),
+    (
+        "solarized-light",
+        include_str!("../assets/themes/solarized-light.toml"),
+    ),
+    (
+        "catppuccin-mocha",
+        include_str!("../assets/themes/catppuccin-mocha.toml"),
+    ),
+    (
+        "catppuccin-latte",
+        include_str!("../assets/themes/catppuccin-latte.toml"),
+    ),
+    ("one-dark", include_str!("../assets/themes/one-dark.toml")),
+    (
+        "github-light",
+        include_str!("../assets/themes/github-light.toml"),
+    ),
+    (
+        "tokyo-night",
+        include_str!("../assets/themes/tokyo-night.toml"),
+    ),
+    ("rose-pine", include_str!("../assets/themes/rose-pine.toml")),
+    (
+        "everforest",
+        include_str!("../assets/themes/everforest.toml"),
+    ),
+    ("kanagawa", include_str!("../assets/themes/kanagawa.toml")),
 ];
 
-const WARM_TM_THEME: &[u8] = include_bytes!("../assets/themes/warm.tmTheme");
+const BUILTIN_SYNTAX: &[(&str, &[u8])] = &[
+    ("warm", include_bytes!("../assets/themes/warm.tmTheme")),
+    (
+        "tokyo-night",
+        include_bytes!("../assets/themes/tokyo-night.tmTheme"),
+    ),
+    (
+        "rose-pine",
+        include_bytes!("../assets/themes/rose-pine.tmTheme"),
+    ),
+    (
+        "everforest",
+        include_bytes!("../assets/themes/everforest.tmTheme"),
+    ),
+    (
+        "kanagawa",
+        include_bytes!("../assets/themes/kanagawa.tmTheme"),
+    ),
+];
 
 pub struct ThemeRegistry {
     chrome: BTreeMap<String, ChromeTheme>,
@@ -189,11 +241,13 @@ impl ThemeRegistry {
         }
 
         let mut syntax = syntect::highlighting::ThemeSet::from(&two_face::theme::extra());
-        let warm = syntect::highlighting::ThemeSet::load_from_reader(&mut std::io::Cursor::new(
-            WARM_TM_THEME,
-        ))
-        .expect("built-in warm.tmTheme is invalid");
-        syntax.themes.insert("warm".to_string(), warm);
+        for (name, bytes) in BUILTIN_SYNTAX {
+            let theme = syntect::highlighting::ThemeSet::load_from_reader(
+                &mut std::io::Cursor::new(*bytes),
+            )
+            .unwrap_or_else(|e| panic!("built-in {name}.tmTheme is invalid: {e}"));
+            syntax.themes.insert((*name).to_string(), theme);
+        }
 
         Self { chrome, syntax }
     }

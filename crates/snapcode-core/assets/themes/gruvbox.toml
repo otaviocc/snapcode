@@ -1,0 +1,19 @@
+# Colors from the gruvbox dark palette.
+name = "gruvbox"
+syntax-theme = "gruvbox-dark"
+
+window = "#282828"
+titlebar = "#3c3836"
+border = "#ffffff1a"
+gutter = "#928374"
+gutter-separator = "#ffffff12"
+title-text = "#a89984"
+traffic-lights = ["#cc241d", "#d79921", "#98971a"]
+shadow = "#000000b4"
+line-emphasis = "#ffffff0f"
+diff-added = "#b8bb2626"
+diff-removed = "#fb493426"
+
+[background]
+kind = "solid"
+color = "#d79921"

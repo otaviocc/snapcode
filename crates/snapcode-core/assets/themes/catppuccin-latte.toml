@@ -1,0 +1,23 @@
+# Colors from the Catppuccin Latte palette (catppuccin.com).
+name = "catppuccin-latte"
+syntax-theme = "Catppuccin Latte"
+
+window = "#eff1f5"
+titlebar = "#e6e9ef"
+border = "#00000014"
+gutter = "#9ca0b0"
+gutter-separator = "#00000012"
+title-text = "#6c6f85"
+traffic-lights = ["#d20f39", "#df8e1d", "#40a02b"]
+shadow = "#0000004d"
+line-emphasis = "#0000000a"
+diff-added = "#40a02b21"
+diff-removed = "#d20f3921"
+
+[background]
+kind = "linear"
+angle = 135.0
+stops = [
+  { offset = 0.0, color = "#7287fd" },
+  { offset = 1.0, color = "#ea76cb" },
+]

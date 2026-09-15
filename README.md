@@ -55,6 +55,13 @@ snapcode main.rs --watch                     # re-render on every save
 | `--font`, `--font-size`, `--line-height`, `--ligatures` | Type |
 | `--scale`, `--dpi` | 1 normal, 2 retina, 3+ print; DPI is written into the PNG |
 
+Sixteen chrome themes ship built in — `warm`, `midnight`, `paper`, `dracula`,
+`nord`, `gruvbox`, `solarized-dark`, `solarized-light`, `catppuccin-mocha`,
+`catppuccin-latte`, `one-dark`, `github-light`, `tokyo-night`, `rose-pine`,
+`everforest` and `kanagawa`. Each names the syntax theme it was built around and
+uses it unless you say otherwise, so `--theme nord` is enough. `--syntax-theme`
+overrides that from 37, so any window can still carry any palette.
+
 ### Content
 
 | Flag | What it does |
@@ -114,6 +121,9 @@ snapcode config path        # where the config file lives
 snapcode config print       # the effective configuration, with flags applied
 snapcode config save        # write it there
 ```
+
+An empty `syntax-theme = ""` means "whatever the chrome theme is paired with",
+which is how it ships; name one to pin it instead.
 
 Drop `.toml` chrome themes and `.tmTheme` syntax themes in
 `~/.config/snapcode/themes/` and they show up in `snapcode themes`.

@@ -31,7 +31,7 @@ use crate::io::Input;
 use crate::settings;
 use fields::{Context as FieldContext, Field, Section, FIELDS};
 use palette::{to_color, Palette};
-use picker::{Picker, AUTOMATIC};
+use picker::{Picker, AUTOMATIC, PAIRED};
 
 const PREVIEW_SCALE: f32 = 1.0;
 
@@ -107,6 +107,7 @@ struct App {
     syntax_themes: Vec<String>,
     languages: Vec<String>,
     detected_language: String,
+    paired_syntax_theme: String,
     palette: Palette,
     picker: Option<Picker>,
 
@@ -166,6 +167,7 @@ impl App {
             syntax_themes,
             languages,
             detected_language: String::new(),
+            paired_syntax_theme: String::new(),
             palette,
             picker: None,
             selected: 0,
@@ -261,11 +263,15 @@ impl App {
                 self.chrome_themes.clone(),
                 Some(self.config.theme.clone()),
             ),
-            Field::SyntaxTheme => (
-                "Syntax theme",
-                self.syntax_themes.clone(),
-                Some(self.config.syntax_theme.clone()),
-            ),
+            Field::SyntaxTheme => {
+                let mut items = vec![PAIRED.to_string()];
+                items.extend(self.syntax_themes.iter().cloned());
+                let current = match self.config.syntax_theme.as_str() {
+                    "" => PAIRED.to_string(),
+                    explicit => explicit.to_string(),
+                };
+                ("Syntax theme", items, Some(current))
+            }
             Field::Language => {
                 let mut items = vec![AUTOMATIC.to_string()];
                 items.extend(self.languages.iter().cloned());
@@ -307,7 +313,13 @@ impl App {
     fn apply_choice(&mut self, field: Field, chosen: String) {
         match field {
             Field::Theme => self.config.theme = chosen,
-            Field::SyntaxTheme => self.config.syntax_theme = chosen,
+            Field::SyntaxTheme => {
+                self.config.syntax_theme = if chosen == PAIRED {
+                    String::new()
+                } else {
+                    chosen
+                }
+            }
             Field::Language => {
                 self.config.code.language = (chosen != AUTOMATIC).then_some(chosen);
             }
@@ -319,6 +331,7 @@ impl App {
     fn context(&self) -> FieldContext<'_> {
         FieldContext {
             detected_language: &self.detected_language,
+            paired_syntax_theme: &self.paired_syntax_theme,
         }
     }
 
@@ -339,6 +352,12 @@ impl App {
 
     fn refresh_palette(&mut self) {
         self.palette = build_palette(&self.renderer, &self.config);
+        self.paired_syntax_theme = self
+            .renderer
+            .themes()
+            .chrome(&self.config.theme)
+            .map(|chrome| chrome.syntax_theme.clone())
+            .unwrap_or_default();
     }
 
     fn is_empty(&self) -> bool {

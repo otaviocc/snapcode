@@ -1,0 +1,23 @@
+# Colors from the Nord palette (nordtheme.com).
+name = "nord"
+syntax-theme = "Nord"
+
+window = "#2e3440"
+titlebar = "#3b4252"
+border = "#ffffff1a"
+gutter = "#616e88"
+gutter-separator = "#ffffff12"
+title-text = "#81a1c1"
+traffic-lights = ["#bf616a", "#ebcb8b", "#a3be8c"]
+shadow = "#000000b4"
+line-emphasis = "#ffffff0f"
+diff-added = "#a3be8c26"
+diff-removed = "#bf616a26"
+
+[background]
+kind = "linear"
+angle = 135.0
+stops = [
+  { offset = 0.0, color = "#4c566a" },
+  { offset = 1.0, color = "#5e81ac" },
+]

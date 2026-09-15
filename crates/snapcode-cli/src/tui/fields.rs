@@ -72,6 +72,7 @@ pub const FIELDS: &[Field] = &[
 #[derive(Debug, Clone, Copy)]
 pub struct Context<'a> {
     pub detected_language: &'a str,
+    pub paired_syntax_theme: &'a str,
 }
 
 pub const BACKGROUND_PRESETS: &[&str] = &[
@@ -125,7 +126,10 @@ impl Field {
         let on_off = |b: bool| if b { "on" } else { "off" }.to_string();
         match self {
             Field::Theme => config.theme.clone(),
-            Field::SyntaxTheme => config.syntax_theme.clone(),
+            Field::SyntaxTheme => match config.syntax_theme.as_str() {
+                "" => format!("{} (paired)", context.paired_syntax_theme),
+                explicit => explicit.to_string(),
+            },
             Field::Background => background_name(&config.background).to_string(),
             Field::Language => match &config.code.language {
                 Some(explicit) => explicit.clone(),
@@ -169,7 +173,9 @@ impl Field {
     ) {
         match self {
             Field::Theme => cycle_string(&mut config.theme, chrome_themes, delta),
-            Field::SyntaxTheme => cycle_string(&mut config.syntax_theme, syntax_themes, delta),
+            Field::SyntaxTheme => {
+                cycle_optional_string(&mut config.syntax_theme, syntax_themes, delta)
+            }
             Field::Language => {
                 if delta < 0 {
                     config.code.language = None;
@@ -282,6 +288,23 @@ fn cycle_string(current: &mut String, options: &[String], delta: i32) {
     *current = options[wrap(index, delta, options.len())].clone();
 }
 
+fn cycle_optional_string(current: &mut String, options: &[String], delta: i32) {
+    let slots = options.len() + 1;
+    let index = if current.is_empty() {
+        0
+    } else {
+        options
+            .iter()
+            .position(|o| o == current)
+            .map(|i| i + 1)
+            .unwrap_or(0)
+    };
+    match wrap(index, delta, slots) {
+        0 => current.clear(),
+        next => current.clone_from(&options[next - 1]),
+    }
+}
+
 fn cycle_slice<'a>(options: &[&'a str], current: &str, delta: i32) -> &'a str {
     let index = options.iter().position(|o| *o == current).unwrap_or(0);
     options[wrap(index, delta, options.len())]
@@ -358,6 +381,7 @@ mod tests {
 
     const CTX: Context<'static> = Context {
         detected_language: "Swift",
+        paired_syntax_theme: "warm",
     };
 
     #[test]
@@ -446,6 +470,25 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn the_syntax_theme_cycles_through_a_paired_slot() {
+        let mut config = RenderConfig::default();
+        assert_eq!(
+            Field::SyntaxTheme.value(&config, &CTX),
+            "warm (paired)",
+            "an unset syntax theme should name the theme's pairing"
+        );
+
+        adjust(&mut config, Field::SyntaxTheme, 1);
+        assert_eq!(config.syntax_theme, "warm");
+        adjust(&mut config, Field::SyntaxTheme, 1);
+        assert_eq!(config.syntax_theme, "Dracula");
+        adjust(&mut config, Field::SyntaxTheme, 1);
+        assert!(config.syntax_theme.is_empty(), "should wrap back to paired");
+        adjust(&mut config, Field::SyntaxTheme, -1);
+        assert_eq!(config.syntax_theme, "Dracula", "should wrap backwards");
     }
 
     #[test]

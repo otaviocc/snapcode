@@ -29,7 +29,7 @@ impl Default for RenderConfig {
         Self {
             scale: 2.0,
             dpi: 144,
-            syntax_theme: "warm".into(),
+            syntax_theme: String::new(),
             theme: "warm".into(),
             font: FontConfig::default(),
             window: WindowConfig::default(),

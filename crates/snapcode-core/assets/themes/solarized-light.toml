@@ -1,0 +1,19 @@
+# Colors from Ethan Schoonover's Solarized palette.
+name = "solarized-light"
+syntax-theme = "Solarized (light)"
+
+window = "#fdf6e3"
+titlebar = "#eee8d5"
+border = "#00000014"
+gutter = "#93a1a1"
+gutter-separator = "#00000012"
+title-text = "#657b83"
+traffic-lights = ["#dc322f", "#b58900", "#859900"]
+shadow = "#0000004d"
+line-emphasis = "#0000000a"
+diff-added = "#85990021"
+diff-removed = "#dc322f21"
+
+[background]
+kind = "solid"
+color = "#839496"
