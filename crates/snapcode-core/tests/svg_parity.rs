@@ -33,8 +33,10 @@ fn rasterize_svg(svg: &str) -> (u32, u32, Vec<u8>) {
 
 fn difference(a: &[u8], b: &[u8], tolerance: u8) -> f64 {
     let differing = a
-        .chunks_exact(4)
-        .zip(b.chunks_exact(4))
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .zip(b.as_chunks::<4>().0)
         .filter(|(p, q)| {
             p.iter()
                 .zip(q.iter())

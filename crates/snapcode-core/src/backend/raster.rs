@@ -312,7 +312,7 @@ fn prepare_image(
         blur_rgba(&mut rgba, dest_w, dest_h, blur);
     }
 
-    for chunk in rgba.chunks_exact_mut(4) {
+    for chunk in rgba.as_chunks_mut::<4>().0 {
         let a = chunk[3] as u32;
         for c in chunk.iter_mut().take(3) {
             *c = ((*c as u32 * a + 127) / 255) as u8;
