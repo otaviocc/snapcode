@@ -20,8 +20,12 @@ you see what you are making before you make it.
 ## Install
 
 ```sh
-cargo install --path crates/snapcode-cli
+cargo install snapcode --locked
 ```
+
+Or from a clone: `cargo install --path crates/snapcode-cli --locked`. Each
+tagged release also carries prebuilt binaries for Linux (x86-64 and ARM64),
+macOS (universal) and Windows.
 
 ## Use
 

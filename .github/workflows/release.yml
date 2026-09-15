@@ -1,0 +1,250 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*.*.*"]
+  # Runs the tag check and the four builds and stops there — no publish, no
+  # release. Publishing to crates.io cannot be undone, only yanked, so the
+  # fragile parts get rehearsed before anything one-way happens.
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+# Only the job that creates the release writes anything, and it asks for that
+# itself. Stated here so a job that starts needing more has to say so.
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: verify tag
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # The job runs either way and the *step* carries the condition. Making the
+      # job conditional would skip it on a dispatch run, and a skipped `needs`
+      # skips everything downstream — the whole rehearsal would quietly do
+      # nothing and report success.
+      - name: Verify the tag matches Cargo.toml
+        if: github.event_name == 'push'
+        run: |
+          set -euo pipefail
+          tag_version="${GITHUB_REF_NAME#v}"
+          # Both crates take their version from [workspace.package], so the
+          # first `version = ` in the root manifest is the one that ships.
+          cargo_version="$(grep -m1 '^version = ' Cargo.toml | sed -E 's/version = "(.*)"/\1/')"
+          if [ "$tag_version" != "$cargo_version" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match version $cargo_version in Cargo.toml." >&2
+            exit 1
+          fi
+
+      # What the archives are named after: the tag on a real release, and the
+      # commit on a rehearsal, so a dispatch run's artifacts cannot be mistaken
+      # for a release's.
+      - name: Resolve the version
+        id: version
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_EVENT_NAME" = "push" ]; then
+            echo "version=$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=dev-$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+          fi
+
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libxcb1-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev
+      - run: cargo test --workspace --locked
+
+  build:
+    name: ${{ matrix.name }}
+    needs: [verify, test]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          # A native ARM runner rather than a cross-compile: the clipboard
+          # backend links against system libraries, and making host and target
+          # the same machine removes the question instead of answering it.
+          - name: aarch64-unknown-linux-gnu
+            os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+          - name: macos-universal
+            os: macos-latest
+            target: universal-apple-darwin
+          - name: x86_64-pc-windows-msvc
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      # arboard's Linux clipboard backend needs X11 headers. The binary is not
+      # useful without --copy, so this is a build requirement, not an extra.
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libxcb1-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev
+
+      - name: Build (single target)
+        if: matrix.target != 'universal-apple-darwin'
+        run: |
+          rustup target add ${{ matrix.target }}
+          cargo build --release --locked --target ${{ matrix.target }} -p snapcode
+
+      - name: Build (macOS universal)
+        if: matrix.target == 'universal-apple-darwin'
+        run: |
+          set -euo pipefail
+          rustup target add aarch64-apple-darwin x86_64-apple-darwin
+          cargo build --release --locked --target aarch64-apple-darwin -p snapcode
+          cargo build --release --locked --target x86_64-apple-darwin -p snapcode
+          mkdir -p target/universal-apple-darwin/release
+          lipo -create -output target/universal-apple-darwin/release/snapcode \
+            target/aarch64-apple-darwin/release/snapcode \
+            target/x86_64-apple-darwin/release/snapcode
+          lipo -info target/universal-apple-darwin/release/snapcode
+
+      # OFL.txt travels with the binary because JetBrains Mono is embedded in
+      # it: the font is redistributed in every archive, and its licence asks to
+      # go along.
+      - name: Archive (tar.gz)
+        if: runner.os != 'Windows'
+        run: |
+          set -euo pipefail
+          staging="snapcode-${{ needs.verify.outputs.version }}-${{ matrix.name }}"
+          mkdir -p "dist/$staging"
+          cp "target/${{ matrix.target }}/release/snapcode" "dist/$staging/"
+          cp README.md LICENSE "dist/$staging/"
+          cp crates/snapcode-core/assets/fonts/OFL.txt "dist/$staging/OFL.txt"
+          chmod +x "dist/$staging/snapcode"
+          tar -czf "dist/$staging.tar.gz" -C dist "$staging"
+
+      - name: Archive (zip)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $staging = "snapcode-${{ needs.verify.outputs.version }}-${{ matrix.name }}"
+          New-Item -ItemType Directory -Path "dist/$staging" -Force | Out-Null
+          Copy-Item "target/${{ matrix.target }}/release/snapcode.exe" "dist/$staging/"
+          Copy-Item README.md, LICENSE "dist/$staging/"
+          Copy-Item crates/snapcode-core/assets/fonts/OFL.txt "dist/$staging/OFL.txt"
+          Compress-Archive -Path "dist/$staging" -DestinationPath "dist/$staging.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: snapcode-${{ needs.verify.outputs.version }}-${{ matrix.name }}
+          path: |
+            dist/*.tar.gz
+            dist/*.zip
+          if-no-files-found: error
+
+  publish:
+    name: publish to crates.io
+    # After the binaries build, so a build failure never leaves a published
+    # crate without a release to go with it.
+    needs: [verify, build]
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libxcb1-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev
+
+      # Two crates, in dependency order: snapcode depends on snapcode-core by
+      # version as well as by path, so core has to exist on the registry before
+      # the binary crate will verify. `cargo publish` waits for the index, so
+      # the second call finds the first.
+      - name: Publish
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          set -euo pipefail
+          # Idempotent: re-running a tag's release after a partial failure must
+          # not fail because a crate is already there at this version — which is
+          # the normal case when core published and the binary crate did not.
+          publish() {
+            local package="$1"
+            local log
+            log="$(mktemp)"
+            if cargo publish --locked -p "$package" 2>&1 | tee "$log"; then
+              return 0
+            fi
+            if grep -q "already uploaded" "$log"; then
+              echo "$package is already published at this version, skipping."
+              return 0
+            fi
+            return 1
+          }
+          publish snapcode-core
+          publish snapcode
+
+  release:
+    name: github release
+    needs: [verify, build, publish]
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.verify.outputs.version }}
+        run: |
+          set -euo pipefail
+          ls -la dist
+          cat > /tmp/notes.md <<NOTES
+          ## Install
+
+          \`\`\`sh
+          cargo install snapcode --locked
+          \`\`\`
+
+          Or take one of the archives below — each holds the binary, the README
+          and the licences. The macOS archive is a universal binary, so there is
+          nothing to choose between Intel and Apple silicon.
+
+          | Platform | Archive |
+          | --- | --- |
+          | Linux, x86-64 | \`snapcode-$VERSION-x86_64-unknown-linux-gnu.tar.gz\` |
+          | Linux, ARM64 | \`snapcode-$VERSION-aarch64-unknown-linux-gnu.tar.gz\` |
+          | macOS, universal | \`snapcode-$VERSION-macos-universal.tar.gz\` |
+          | Windows, x86-64 | \`snapcode-$VERSION-x86_64-pc-windows-msvc.zip\` |
+
+          Building from source needs Rust 1.85 or newer.
+          NOTES
+          gh release create "$GITHUB_REF_NAME" \
+            --title "snapcode $GITHUB_REF_NAME" \
+            --generate-notes \
+            --notes-file /tmp/notes.md \
+            dist/*

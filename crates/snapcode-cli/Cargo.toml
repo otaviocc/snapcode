@@ -1,5 +1,5 @@
 [package]
-name = "snapcode-cli"
+name = "snapcode"
 description = "CLI and TUI for rendering code snippets into images."
 version.workspace = true
 edition.workspace = true
@@ -7,10 +7,9 @@ rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 authors.workspace = true
-
-[[bin]]
-name = "snapcode"
-path = "src/main.rs"
+readme = "../../README.md"
+keywords = ["syntax-highlighting", "image", "code", "screenshot", "tui"]
+categories = ["command-line-utilities", "multimedia::images"]
 
 [dependencies]
 anyhow = "1.0.104"

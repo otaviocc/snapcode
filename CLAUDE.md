@@ -23,12 +23,14 @@ make install                            # cargo install --path crates/snapcode-c
 ```
 
 Run one test: `cargo test -p snapcode-core --test render traffic_lights`, or
-`cargo test -p snapcode-cli fields::` for a unit-test module.
+`cargo test -p snapcode fields::` for a unit-test module.
 
 ## Architecture
 
 Two crates. `snapcode-core` is the renderer and has no CLI or TUI dependencies;
-`snapcode-cli` is the binary. The pipeline is:
+`crates/snapcode-cli/` holds the binary, whose package is named `snapcode` so
+that `cargo install snapcode` works — the directory keeps the longer name, so
+`-p snapcode` and `crates/snapcode-cli` both refer to it. The pipeline is:
 
 ```text
 source -> syntect highlight -> cosmic-text shape -> compose a Scene -> raster | svg

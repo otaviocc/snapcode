@@ -11,7 +11,7 @@ repository = "https://github.com/otaviocc/snapcode"
 authors = ["Otávio Cordeiro"]
 
 [workspace.dependencies]
-snapcode-core = { path = "crates/snapcode-core" }
+snapcode-core = { path = "crates/snapcode-core", version = "0.1.0" }
 
 [profile.release]
 opt-level = 3

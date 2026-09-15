@@ -12,10 +12,10 @@ release: ## Build the optimized release binary
 	cargo build --workspace --release
 
 run: ## Run the debug binary (use ARGS="snippet.swift --line-numbers")
-	cargo run -p snapcode-cli -- $(ARGS)
+	cargo run -p snapcode -- $(ARGS)
 
 tui: ## Open the TUI on a file (use FILE=snippet.swift)
-	cargo run -p snapcode-cli -- tui $(FILE)
+	cargo run -p snapcode -- tui $(FILE)
 
 test: ## Run the test suite
 	cargo test --workspace
@@ -47,12 +47,12 @@ install: ## Install the snapcode binary via cargo (~/.cargo/bin)
 	cargo install --path crates/snapcode-cli --locked --force
 
 uninstall: ## Remove the installed snapcode binary
-	cargo uninstall snapcode-cli
+	cargo uninstall snapcode
 
 completions: ## Write shell completions to target/completions/
 	@mkdir -p target/completions
 	@for shell in bash zsh fish; do \
-		cargo run -q -p snapcode-cli -- completions $$shell > target/completions/snapcode.$$shell; \
+		cargo run -q -p snapcode -- completions $$shell > target/completions/snapcode.$$shell; \
 	done
 	@echo "wrote target/completions/snapcode.{bash,zsh,fish}"
 
