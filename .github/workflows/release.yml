@@ -241,7 +241,7 @@ jobs:
           | macOS, universal | \`snapcode-$VERSION-macos-universal.tar.gz\` |
           | Windows, x86-64 | \`snapcode-$VERSION-x86_64-pc-windows-msvc.zip\` |
 
-          Building from source needs Rust 1.85 or newer.
+          Building from source needs Rust 1.89 or newer.
           NOTES
           gh release create "$GITHUB_REF_NAME" \
             --title "snapcode $GITHUB_REF_NAME" \
