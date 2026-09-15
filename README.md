@@ -13,7 +13,7 @@ It is one Rust binary that is both a scriptable CLI and a TUI with a live
 preview in the terminal. 220 languages, sixteen themes and the font are all
 compiled in, so the same command produces the same pixels on every machine.
 
-![A Swift snippet rendered by snapcode](docs/hero.png)
+<img width="1613" height="1041" alt="screenshot" src="https://github.com/user-attachments/assets/73649684-adaa-40b0-9eca-798911a0ee63" />
 
 ## Install
 
