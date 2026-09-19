@@ -10,7 +10,7 @@ background, as a PNG or an SVG. Point `snapcode` at a file and it picks the
 language, sizes the window to the code and writes the image next to it.
 
 It is one Rust binary that is both a scriptable CLI and a TUI with a live
-preview in the terminal. 220 languages, sixteen themes and the font are all
+preview in the terminal. 220 languages, seventeen themes and the font are all
 compiled in, so the same command produces the same pixels on every machine.
 
 <img width="1613" height="1041" alt="screenshot" src="https://github.com/user-attachments/assets/73649684-adaa-40b0-9eca-798911a0ee63" />
@@ -64,12 +64,12 @@ writes to stdout, leaving progress on stderr so the pipe stays clean.
 | `--font`, `--font-size`, `--line-height`, `--ligatures` | Type |
 | `--scale`, `--dpi` | 1 normal, 2 retina, 3+ print; DPI is written into the PNG |
 
-Sixteen themes ship built in — `warm`, `midnight`, `paper`, `dracula`, `nord`,
+Seventeen themes ship built in — `warm`, `midnight`, `paper`, `dracula`, `nord`,
 `gruvbox`, `solarized-dark`, `solarized-light`, `catppuccin-mocha`,
 `catppuccin-latte`, `one-dark`, `github-light`, `tokyo-night`, `rose-pine`,
-`everforest` and `kanagawa`. Each brings its own token colors, so `--theme nord`
-is all you need; `--syntax-theme` picks those separately from 37, if you want a
-light window carrying a dark theme's palette.
+`everforest`, `kanagawa` and `default-plus`. Each brings its own token colors, so
+`--theme nord` is all you need; `--syntax-theme` picks those separately from 38,
+if you want a light window carrying a dark theme's palette.
 
 ### Content
 

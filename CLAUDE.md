@@ -57,7 +57,7 @@ source -> syntect highlight -> cosmic-text shape -> compose a Scene -> raster | 
   and a syntax theme (`.tmTheme`). Every chrome theme names the syntax theme it
   was built around, and `config.syntax_theme` defaults to the *empty string* so
   that pairing is what renders; a non-empty value overrides it. Do not give it a
-  concrete default — that silently pins one palette onto all sixteen frames.
+  concrete default — that silently pins one palette onto all seventeen frames.
   A built-in theme's file stem, its `name` field and its key in `BUILTIN_CHROME`
   must all match, and `load_dir` keys user themes by stem for the same reason.
   `resolve_color` resolves the terminal-only

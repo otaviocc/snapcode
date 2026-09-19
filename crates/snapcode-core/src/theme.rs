@@ -204,6 +204,10 @@ const BUILTIN_CHROME: &[(&str, &str)] = &[
         include_str!("../assets/themes/everforest.toml"),
     ),
     ("kanagawa", include_str!("../assets/themes/kanagawa.toml")),
+    (
+        "default-plus",
+        include_str!("../assets/themes/default-plus.toml"),
+    ),
 ];
 
 const BUILTIN_SYNTAX: &[(&str, &[u8])] = &[
@@ -223,6 +227,10 @@ const BUILTIN_SYNTAX: &[(&str, &[u8])] = &[
     (
         "kanagawa",
         include_bytes!("../assets/themes/kanagawa.tmTheme"),
+    ),
+    (
+        "default-plus",
+        include_bytes!("../assets/themes/default-plus.tmTheme"),
     ),
 ];
 

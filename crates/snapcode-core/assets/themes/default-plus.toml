@@ -1,0 +1,24 @@
+# Colors from Default+ (github.com/otaviocc/default-plus), an Xcode theme whose
+# comments are green and strings red. The backdrop gradient is snapcode's own.
+name = "default-plus"
+syntax-theme = "default-plus"
+
+window = "#171717"
+titlebar = "#242424"
+border = "#ffffff1a"
+gutter = "#8E8E8E"
+gutter-separator = "#ffffff12"
+title-text = "#8E8E8E"
+traffic-lights = ["#F74A4A", "#EFB759", "#41B645"]
+shadow = "#000000b4"
+line-emphasis = "#ffffff0f"
+diff-added = "#41B64526"
+diff-removed = "#F74A4A26"
+
+[background]
+kind = "linear"
+angle = 135.0
+stops = [
+  { offset = 0.0, color = "#35B0D8" },
+  { offset = 1.0, color = "#F2248C" },
+]
