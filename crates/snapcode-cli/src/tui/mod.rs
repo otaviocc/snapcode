@@ -23,7 +23,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Borders, Clear, Paragraph, Wrap};
 use ratatui::{Frame, Terminal};
 use ratatui_image::picker::Picker as ImagePicker;
-use ratatui_image::protocol::StatefulProtocol;
+use ratatui_image::thread::ThreadProtocol;
 use ratatui_image::{Resize, StatefulImage};
 use snapcode_core::config::RenderConfig;
 use snapcode_core::{RenderRequest, Renderer};
@@ -111,7 +111,6 @@ struct App {
     pending: bool,
     input: Input,
     args: RenderArgs,
-    image_picker: ImagePicker,
 
     chrome_themes: Vec<String>,
     syntax_themes: Vec<String>,
@@ -124,7 +123,10 @@ struct App {
     selected: usize,
     scroll: usize,
     dirty: bool,
-    preview: Option<StatefulProtocol>,
+    preview: ThreadProtocol,
+    has_image: bool,
+    encoding: bool,
+    fitted: Rect,
     export_size: Option<(u32, u32)>,
     error: Option<String>,
     status: Option<(String, Instant)>,
@@ -144,7 +146,8 @@ impl App {
         image_picker: ImagePicker,
     ) -> Self {
         let renderer = Arc::new(renderer);
-        let worker = Worker::spawn(Arc::clone(&renderer));
+        let worker = Worker::spawn(Arc::clone(&renderer), image_picker);
+        let preview = ThreadProtocol::new(worker.encoder(), None);
         let chrome_themes = renderer
             .themes()
             .chrome_names()
@@ -177,7 +180,6 @@ impl App {
                 path: None,
             }),
             args,
-            image_picker,
             chrome_themes,
             syntax_themes,
             languages,
@@ -188,7 +190,10 @@ impl App {
             selected: 0,
             scroll: 0,
             dirty: true,
-            preview: None,
+            preview,
+            has_image: false,
+            encoding: false,
+            fitted: Rect::default(),
             export_size: None,
             error: None,
             status: None,
@@ -207,10 +212,15 @@ impl App {
                 self.dirty = false;
             }
             self.receive_preview();
+            self.receive_encoded();
 
             terminal.draw(|frame| self.draw(frame))?;
 
-            let wait = if self.pending { BUSY_POLL } else { IDLE_POLL };
+            let wait = if self.pending || self.encoding {
+                BUSY_POLL
+            } else {
+                IDLE_POLL
+            };
             if event::poll(wait)? {
                 if let Event::Key(key) = event::read()? {
                     if key.kind == KeyEventKind::Press {
@@ -387,7 +397,7 @@ impl App {
 
         if self.is_empty() {
             self.error = None;
-            self.preview = None;
+            self.clear_image();
             self.export_size = None;
             self.pending = false;
             return;
@@ -422,11 +432,11 @@ impl App {
         }
         self.pending = false;
 
-        let buffer = match done.result {
-            Ok(buffer) => buffer,
+        let rendered = match done.result {
+            Ok(rendered) => rendered,
             Err(error) => {
                 self.error = Some(error);
-                self.preview = None;
+                self.clear_image();
                 self.export_size = None;
                 return;
             }
@@ -435,13 +445,32 @@ impl App {
 
         let factor = self.config.scale / PREVIEW_SCALE;
         self.export_size = Some((
-            (buffer.width() as f32 * factor).round() as u32,
-            (buffer.height() as f32 * factor).round() as u32,
+            (rendered.width as f32 * factor).round() as u32,
+            (rendered.height as f32 * factor).round() as u32,
         ));
-        self.preview = Some(
-            self.image_picker
-                .new_resize_protocol(image::DynamicImage::ImageRgba8(buffer)),
-        );
+        self.preview.replace_protocol(rendered.protocol);
+        self.has_image = true;
+    }
+
+    fn receive_encoded(&mut self) {
+        let responses: Vec<_> = self.worker.encoded().collect();
+        for response in responses {
+            match response {
+                Ok(completed) => {
+                    self.preview.update_resized_protocol(completed);
+                }
+                Err(error) => {
+                    self.error = Some(error.to_string());
+                    self.clear_image();
+                }
+            }
+        }
+    }
+
+    fn clear_image(&mut self) {
+        self.preview.empty_protocol();
+        self.has_image = false;
+        self.encoding = false;
     }
 
     fn render_with(&self, config: &RenderConfig) -> Result<snapcode_core::backend::raster::Raster> {
@@ -473,7 +502,7 @@ impl App {
         enter_screen()?;
         terminal.clear()?;
 
-        self.preview = None;
+        self.clear_image();
         self.dirty = true;
 
         match edited {
@@ -865,7 +894,7 @@ impl App {
             return;
         }
 
-        let Some(protocol) = &mut self.preview else {
+        if !self.has_image {
             frame.render_widget(
                 Paragraph::new("rendering…")
                     .style(self.palette.label())
@@ -873,17 +902,28 @@ impl App {
                 inner,
             );
             return;
-        };
+        }
 
         let resize = Resize::Fit(None);
-        let fitted = protocol.size_for(resize.clone(), inner);
+        let fitted = self
+            .preview
+            .size_for(resize.clone(), inner)
+            .inspect(|size| self.fitted = *size);
+        let size = fitted.unwrap_or(self.fitted);
         let centered = Rect {
-            x: inner.x + inner.width.saturating_sub(fitted.width) / 2,
-            y: inner.y + inner.height.saturating_sub(fitted.height) / 2,
-            width: fitted.width.min(inner.width),
-            height: fitted.height.min(inner.height),
+            x: inner.x + inner.width.saturating_sub(size.width) / 2,
+            y: inner.y + inner.height.saturating_sub(size.height) / 2,
+            width: size.width.min(inner.width),
+            height: size.height.min(inner.height),
         };
-        frame.render_stateful_widget(StatefulImage::new().resize(resize), centered, protocol);
+        if fitted.is_some() {
+            frame.render_stateful_widget(
+                StatefulImage::new().resize(resize.clone()),
+                centered,
+                &mut self.preview,
+            );
+        }
+        self.encoding = self.preview.size_for(resize, inner).is_none();
     }
 
     fn draw_picker(&mut self, frame: &mut Frame) {

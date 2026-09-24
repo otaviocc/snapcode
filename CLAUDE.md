@@ -62,8 +62,13 @@ source -> syntect highlight -> cosmic-text shape -> compose a Scene -> raster | 
   tagged with a generation, keeps only the newest of any that queued up, and
   the UI drops a result whose generation is stale. Do not call
   `render_raster` from `draw` or `handle_key`; a key held down would queue a
-  render per repeat. `[profile.dev.package."*"]` optimizes dependencies so
-  `make tui` is usable from a debug build. The preview job alone gets
+  render per repeat. The worker also builds the `StatefulProtocol`, and a
+  second thread runs ratatui-image's resize and encode, so `draw` only writes
+  finished bytes. `App.preview` is one long-lived `ThreadProtocol`: its
+  `replace_protocol` and `empty_protocol` bump an id that rejects late
+  responses, so never recreate it or a stale image can land in the new one.
+  `[profile.dev.package."*"]` optimizes dependencies so `make tui` is usable
+  from a debug build. The preview job alone gets
   `shadow = None` (`preview_config`); `App.config` keeps the shadow so export,
   copy, save and `p` still see it. Do not strip it from `App.config`.
 - `theme.rs` has two independent axes: a chrome theme (`.toml`, window frame)
@@ -90,9 +95,9 @@ source -> syntect highlight -> cosmic-text shape -> compose a Scene -> raster | 
   write to it, because those are asked for.
 - Suspending the TUI (`App::edit_snippet`) must leave and re-enter the alternate
   screen in a balanced pair on *every* path, including a failed editor, or the
-  user is stranded in raw mode. Afterwards `self.preview` is dropped, not
-  reused: a kitty/iterm2 `StatefulProtocol` holds placements that the screen
-  churn invalidates, so it has to be rebuilt. Do not "drain leftover keystrokes"
+  user is stranded in raw mode. Afterwards `clear_image` empties `self.preview`
+  rather than reusing it: a kitty/iterm2 `StatefulProtocol` holds placements that the
+  screen churn invalidates, so it has to be rebuilt. Do not "drain leftover keystrokes"
   there with a `while event::poll(ZERO) { event::read() }` loop: `poll` reports
   ready on a *partial* escape sequence and `read` then blocks forever waiting
   for the rest, which hangs the TUI at 0% CPU with no way out. An edit that comes back byte-identical
