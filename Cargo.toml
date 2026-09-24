@@ -3,7 +3,7 @@ resolver = "2"
 members = ["crates/snapcode-core", "crates/snapcode-cli"]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 rust-version = "1.89"
 license = "MIT"
@@ -11,7 +11,7 @@ repository = "https://github.com/otaviocc/snapcode"
 authors = ["Otávio Cordeiro"]
 
 [workspace.dependencies]
-snapcode-core = { path = "crates/snapcode-core", version = "0.1.0" }
+snapcode-core = { path = "crates/snapcode-core", version = "0.1.1" }
 
 [profile.dev.package."*"]
 opt-level = 3
