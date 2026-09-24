@@ -367,10 +367,15 @@ fn draw_shadow(
         None,
     );
 
-    let (w, h) = (layer.width(), layer.height());
-    let mut data = layer.data().to_vec();
-    blur_rgba(&mut data, w, h, blur);
-    layer.data_mut().copy_from_slice(&data);
+    let (canvas_w, canvas_h) = (layer.width(), layer.height());
+    let reach = blur_reach(blur) + 2;
+    let x0 = (rect.x.floor() as i64 - reach).clamp(0, canvas_w as i64) as u32;
+    let y0 = (rect.y.floor() as i64 - reach).clamp(0, canvas_h as i64) as u32;
+    let x1 = ((rect.x + rect.width).ceil() as i64 + reach).clamp(0, canvas_w as i64) as u32;
+    let y1 = ((rect.y + rect.height).ceil() as i64 + reach).clamp(0, canvas_h as i64) as u32;
+    if x1 > x0 && y1 > y0 {
+        blur_region(layer.data_mut(), canvas_w, (x0, y0, x1 - x0, y1 - y0), blur);
+    }
 
     pixmap.draw_pixmap(
         0,
@@ -383,49 +388,100 @@ fn draw_shadow(
     Ok(())
 }
 
+fn blur_radius(sigma: f32) -> i32 {
+    ((sigma * 0.5).round() as i32).clamp(1, 200)
+}
+
+fn blur_reach(sigma: f32) -> i64 {
+    blur_radius(sigma) as i64 * 3
+}
+
 fn blur_rgba(data: &mut [u8], width: u32, height: u32, sigma: f32) {
-    let radius = ((sigma * 0.5).round() as i32).clamp(1, 200);
+    blur_region(data, width, (0, 0, width, height), sigma);
+}
+
+fn blur_region(data: &mut [u8], stride: u32, region: (u32, u32, u32, u32), sigma: f32) {
+    let radius = blur_radius(sigma);
+    let (x0, y0, w, h) = (
+        region.0 as usize,
+        region.1 as usize,
+        region.2 as usize,
+        region.3 as usize,
+    );
+    let stride = stride as usize;
+    let mut scratch = vec![0u8; w.max(h) * 4];
+    let mut copy = vec![0u8; w * h * 4];
+    let mut sums = vec![0u32; w * 4];
+
     for _ in 0..3 {
-        box_blur_pass(data, width, height, radius, true);
-        box_blur_pass(data, width, height, radius, false);
+        for y in y0..y0 + h {
+            let start = (y * stride + x0) * 4;
+            box_blur_row(&mut data[start..start + w * 4], &mut scratch, radius);
+        }
+
+        for (row, dst) in copy.chunks_exact_mut(w * 4).enumerate() {
+            let start = ((y0 + row) * stride + x0) * 4;
+            dst.copy_from_slice(&data[start..start + w * 4]);
+        }
+        box_blur_columns(&copy, data, (stride, x0, y0), (w, h), radius, &mut sums);
     }
 }
 
-fn box_blur_pass(data: &mut [u8], width: u32, height: u32, radius: i32, horizontal: bool) {
-    let (w, h) = (width as i32, height as i32);
-    let (outer, inner) = if horizontal { (h, w) } else { (w, h) };
+fn box_blur_row(row: &mut [u8], line: &mut [u8], radius: i32) {
+    let inner = (row.len() / 4) as i32;
     let window = (radius * 2 + 1) as u32;
-    let mut line = vec![0u8; (inner as usize) * 4];
-
-    for o in 0..outer {
-        let index = |i: i32| -> usize {
-            let (x, y) = if horizontal { (i, o) } else { (o, i) };
-            ((y * w + x) as usize) * 4
-        };
-
-        let mut sums = [0u32; 4];
-        for k in -radius..=radius {
-            let i = k.clamp(0, inner - 1);
-            let px = index(i);
-            for c in 0..4 {
-                sums[c] += data[px + c] as u32;
-            }
+    let mut sums = [0u32; 4];
+    for k in -radius..=radius {
+        let px = (k.clamp(0, inner - 1) as usize) * 4;
+        for c in 0..4 {
+            sums[c] += row[px + c] as u32;
         }
+    }
 
-        for i in 0..inner {
-            for c in 0..4 {
-                line[(i as usize) * 4 + c] = (sums[c] / window) as u8;
-            }
-            let out = index((i - radius).clamp(0, inner - 1));
-            let inp = index((i + radius + 1).clamp(0, inner - 1));
-            for c in 0..4 {
-                sums[c] = sums[c] + data[inp + c] as u32 - data[out + c] as u32;
-            }
+    for i in 0..inner {
+        let out = &mut line[(i as usize) * 4..(i as usize) * 4 + 4];
+        for c in 0..4 {
+            out[c] = (sums[c] / window) as u8;
         }
+        let leaving = ((i - radius).clamp(0, inner - 1) as usize) * 4;
+        let entering = ((i + radius + 1).clamp(0, inner - 1) as usize) * 4;
+        for c in 0..4 {
+            sums[c] = sums[c] + row[entering + c] as u32 - row[leaving + c] as u32;
+        }
+    }
+    row.copy_from_slice(&line[..row.len()]);
+}
 
-        for i in 0..inner {
-            let px = index(i);
-            data[px..px + 4].copy_from_slice(&line[(i as usize) * 4..(i as usize) * 4 + 4]);
+fn box_blur_columns(
+    source: &[u8],
+    data: &mut [u8],
+    (stride, x0, y0): (usize, usize, usize),
+    (w, h): (usize, usize),
+    radius: i32,
+    sums: &mut [u32],
+) {
+    let window = (radius * 2 + 1) as u32;
+    let row_of = |r: i32| -> &[u8] {
+        let r = r.clamp(0, h as i32 - 1) as usize;
+        &source[r * w * 4..(r + 1) * w * 4]
+    };
+
+    sums.fill(0);
+    for k in -radius..=radius {
+        for (sum, &v) in sums.iter_mut().zip(row_of(k)) {
+            *sum += v as u32;
+        }
+    }
+
+    for i in 0..h as i32 {
+        let start = ((y0 + i as usize) * stride + x0) * 4;
+        for (dst, &sum) in data[start..start + w * 4].iter_mut().zip(sums.iter()) {
+            *dst = (sum / window) as u8;
+        }
+        let entering = row_of(i + radius + 1);
+        let leaving = row_of(i - radius);
+        for ((sum, &inc), &out) in sums.iter_mut().zip(entering).zip(leaving) {
+            *sum = *sum + inc as u32 - out as u32;
         }
     }
 }
@@ -534,4 +590,76 @@ fn to_sk_stops(stops: &[crate::config::GradientStop]) -> Vec<SkStop> {
         .iter()
         .map(|s| SkStop::new(s.offset, to_sk_color(s.color)))
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn naive_pass(data: &mut [u8], w: i32, h: i32, radius: i32, horizontal: bool) {
+        let source = data.to_vec();
+        let (outer, inner) = if horizontal { (h, w) } else { (w, h) };
+        let window = (radius * 2 + 1) as u32;
+        for o in 0..outer {
+            for i in 0..inner {
+                let at = |i: i32| {
+                    let (x, y) = if horizontal { (i, o) } else { (o, i) };
+                    ((y * w + x) as usize) * 4
+                };
+                for c in 0..4 {
+                    let sum: u32 = (-radius..=radius)
+                        .map(|k| source[at((i + k).clamp(0, inner - 1)) + c] as u32)
+                        .sum();
+                    data[at(i) + c] = (sum / window) as u8;
+                }
+            }
+        }
+    }
+
+    fn naive_blur(data: &mut [u8], w: u32, h: u32, sigma: f32) {
+        let radius = blur_radius(sigma);
+        for _ in 0..3 {
+            naive_pass(data, w as i32, h as i32, radius, true);
+            naive_pass(data, w as i32, h as i32, radius, false);
+        }
+    }
+
+    fn block(w: u32, h: u32, (x0, y0, x1, y1): (u32, u32, u32, u32)) -> Vec<u8> {
+        let mut data = vec![0u8; (w * h * 4) as usize];
+        for y in y0..y1 {
+            for x in x0..x1 {
+                let i = ((y * w + x) * 4) as usize;
+                data[i..i + 4].copy_from_slice(&[10 + (x % 7) as u8 * 20, 30, 200, 255]);
+            }
+        }
+        data
+    }
+
+    #[test]
+    fn the_fast_blur_matches_the_straightforward_one() {
+        let (w, h) = (61, 47);
+        let mut fast = block(w, h, (0, 5, 40, 47));
+        let mut slow = fast.clone();
+        blur_rgba(&mut fast, w, h, 9.0);
+        naive_blur(&mut slow, w, h, 9.0);
+        assert_eq!(fast, slow);
+    }
+
+    #[test]
+    fn blurring_only_the_padded_region_changes_nothing() {
+        let (w, h) = (90, 80);
+        let sigma = 6.0;
+        let mut full = block(w, h, (30, 25, 50, 45));
+        let mut cropped = full.clone();
+        blur_rgba(&mut full, w, h, sigma);
+
+        let reach = blur_reach(sigma) as u32 + 2;
+        blur_region(
+            &mut cropped,
+            w,
+            (30 - reach, 25 - reach, 20 + 2 * reach, 20 + 2 * reach),
+            sigma,
+        );
+        assert_eq!(full, cropped);
+    }
 }

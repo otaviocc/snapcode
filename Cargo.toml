@@ -13,6 +13,12 @@ authors = ["Otávio Cordeiro"]
 [workspace.dependencies]
 snapcode-core = { path = "crates/snapcode-core", version = "0.1.0" }
 
+[profile.dev.package."*"]
+opt-level = 3
+
+[profile.dev.package.snapcode-core]
+opt-level = 3
+
 [profile.release]
 opt-level = 3
 lto = "thin"

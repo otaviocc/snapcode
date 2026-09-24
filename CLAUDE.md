@@ -53,6 +53,19 @@ source -> syntect highlight -> cosmic-text shape -> compose a Scene -> raster | 
   machines. System fonts are still loaded for fallback (CJK, emoji).
   `FontStack::split` exists because `set_rich_text` needs `&mut FontSystem`
   while the `Attrs` it consumes borrow the family name.
+- `backend/raster.rs` blurs shadows over the shadow's bounding box plus
+  three box radii, not the whole canvas, and its vertical pass walks *rows*
+  with a running per-column sum. Walking columns strides `width*4` bytes per
+  step and misses the cache on nearly every read; it was most of a render.
+  A unit test in that file pins the fast blur to a naive reference: keep it byte-exact.
+- The TUI never renders on the event-loop thread. `tui/worker.rs` takes jobs
+  tagged with a generation, keeps only the newest of any that queued up, and
+  the UI drops a result whose generation is stale. Do not call
+  `render_raster` from `draw` or `handle_key`; a key held down would queue a
+  render per repeat. `[profile.dev.package."*"]` optimizes dependencies so
+  `make tui` is usable from a debug build. The preview job alone gets
+  `shadow = None` (`preview_config`); `App.config` keeps the shadow so export,
+  copy, save and `p` still see it. Do not strip it from `App.config`.
 - `theme.rs` has two independent axes: a chrome theme (`.toml`, window frame)
   and a syntax theme (`.tmTheme`). Every chrome theme names the syntax theme it
   was built around, and `config.syntax_theme` defaults to the *empty string* so

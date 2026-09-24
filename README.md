@@ -13,7 +13,7 @@ It is one Rust binary that is both a scriptable CLI and a TUI with a live
 preview in the terminal. 220 languages, seventeen themes and the font are all
 compiled in, so the same command produces the same pixels on every machine.
 
-<img width="1613" height="1041" alt="screenshot" src="https://github.com/user-attachments/assets/73649684-adaa-40b0-9eca-798911a0ee63" />
+![screenshot](https://github.com/user-attachments/assets/73649684-adaa-40b0-9eca-798911a0ee63)
 
 ## Install
 
@@ -86,7 +86,8 @@ if you want a light window carrying a dark theme's palette.
 ## TUI
 
 `snapcode tui FILE` opens a settings form beside a live preview of the real
-image — the same renderer the CLI uses, so what you see is what you export.
+image — the same renderer the CLI uses, so what you see is what you export, minus
+the shadow.
 
 ```text
 j / k, ↓ / ↑     move between settings      e   export a PNG
@@ -98,6 +99,9 @@ g / G            first / last setting       r   reload the source file
 ```
 
 `p` is the useful one: tune it by eye, then get the command line back out.
+
+The preview leaves out the drop shadow to stay quick; `e` and `c` add it back,
+as configured by `--shadow-blur`, `--shadow-color`, `--no-shadow` or your config.
 
 Without a FILE it starts empty — press `i` to open `$EDITOR`, paste a snippet
 and save. `i` works with a file too, editing a temp copy so your own file is

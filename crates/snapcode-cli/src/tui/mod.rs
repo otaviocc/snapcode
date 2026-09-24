@@ -5,8 +5,10 @@ mod fields;
 mod palette;
 mod picker;
 mod preview;
+mod worker;
 
 use std::io::{IsTerminal, Stdout};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result};
@@ -32,10 +34,15 @@ use crate::settings;
 use fields::{Context as FieldContext, Field, Section, FIELDS};
 use palette::{to_color, Palette};
 use picker::{Picker, AUTOMATIC, PAIRED};
+use worker::{Job, Worker};
 
 const PREVIEW_SCALE: f32 = 1.0;
 
 const STATUS_TTL: Duration = Duration::from_secs(4);
+
+const IDLE_POLL: Duration = Duration::from_millis(200);
+
+const BUSY_POLL: Duration = Duration::from_millis(30);
 
 type Backend = ratatui::backend::CrosstermBackend<Stdout>;
 
@@ -98,7 +105,10 @@ fn restore_terminal(terminal: &mut Terminal<Backend>) -> Result<()> {
 
 struct App {
     config: RenderConfig,
-    renderer: Renderer,
+    renderer: Arc<Renderer>,
+    worker: Worker,
+    generation: u64,
+    pending: bool,
     input: Input,
     args: RenderArgs,
     image_picker: ImagePicker,
@@ -133,6 +143,8 @@ impl App {
         args: RenderArgs,
         image_picker: ImagePicker,
     ) -> Self {
+        let renderer = Arc::new(renderer);
+        let worker = Worker::spawn(Arc::clone(&renderer));
         let chrome_themes = renderer
             .themes()
             .chrome_names()
@@ -157,6 +169,9 @@ impl App {
         Self {
             config,
             renderer,
+            worker,
+            generation: 0,
+            pending: false,
             input: input.unwrap_or_else(|| Input {
                 source: String::new(),
                 path: None,
@@ -187,14 +202,16 @@ impl App {
 
     fn event_loop(&mut self, terminal: &mut Terminal<Backend>) -> Result<()> {
         while !self.quit {
-            if self.dirty && !event::poll(Duration::ZERO)? {
-                self.refresh_preview();
+            if self.dirty {
+                self.request_preview();
                 self.dirty = false;
             }
+            self.receive_preview();
 
             terminal.draw(|frame| self.draw(frame))?;
 
-            if event::poll(Duration::from_millis(200))? {
+            let wait = if self.pending { BUSY_POLL } else { IDLE_POLL };
+            if event::poll(wait)? {
                 if let Event::Key(key) = event::read()? {
                     if key.kind == KeyEventKind::Press {
                         self.handle_key(key);
@@ -364,18 +381,17 @@ impl App {
         self.input.source.trim().is_empty()
     }
 
-    fn refresh_preview(&mut self) {
+    fn request_preview(&mut self) {
         self.refresh_palette();
+        self.generation += 1;
 
         if self.is_empty() {
             self.error = None;
             self.preview = None;
             self.export_size = None;
+            self.pending = false;
             return;
         }
-
-        let mut preview_config = self.config.clone();
-        preview_config.scale = PREVIEW_SCALE;
 
         self.detected_language = self
             .renderer
@@ -388,10 +404,28 @@ impl App {
             .map(|syntax| syntax.name.clone())
             .unwrap_or_else(|_| "unknown".to_string());
 
-        let raster = match self.render_with(&preview_config) {
-            Ok(raster) => raster,
+        self.worker.submit(Job {
+            generation: self.generation,
+            source: self.input.source.clone(),
+            path: self.input.path.clone(),
+            config: preview_config(&self.config),
+        });
+        self.pending = true;
+    }
+
+    fn receive_preview(&mut self) {
+        let Some(done) = self.worker.latest() else {
+            return;
+        };
+        if done.generation != self.generation {
+            return;
+        }
+        self.pending = false;
+
+        let buffer = match done.result {
+            Ok(buffer) => buffer,
             Err(error) => {
-                self.error = Some(format!("{error:#}"));
+                self.error = Some(error);
                 self.preview = None;
                 self.export_size = None;
                 return;
@@ -401,15 +435,9 @@ impl App {
 
         let factor = self.config.scale / PREVIEW_SCALE;
         self.export_size = Some((
-            (raster.width as f32 * factor).round() as u32,
-            (raster.height as f32 * factor).round() as u32,
+            (buffer.width() as f32 * factor).round() as u32,
+            (buffer.height() as f32 * factor).round() as u32,
         ));
-
-        let Some(buffer) = image::RgbaImage::from_raw(raster.width, raster.height, raster.pixels)
-        else {
-            self.error = Some("the preview image was the wrong size".into());
-            return;
-        };
         self.preview = Some(
             self.image_picker
                 .new_resize_protocol(image::DynamicImage::ImageRgba8(buffer)),
@@ -803,9 +831,10 @@ impl App {
     }
 
     fn draw_preview(&mut self, frame: &mut Frame, area: Rect) {
-        let title = match self.export_size {
-            Some((w, h)) => format!(" Preview  {w}x{h} "),
-            None => " Preview ".to_string(),
+        let title = match (self.export_size, self.pending) {
+            (Some((w, h)), true) => format!(" Preview  {w}x{h}  rendering\u{2026} "),
+            (Some((w, h)), false) => format!(" Preview  {w}x{h} "),
+            (None, _) => " Preview ".to_string(),
         };
         let block = Block::default()
             .borders(Borders::ALL)
@@ -1050,6 +1079,13 @@ enum FormRow {
     Field(usize),
 }
 
+fn preview_config(config: &RenderConfig) -> RenderConfig {
+    let mut preview = config.clone();
+    preview.scale = PREVIEW_SCALE;
+    preview.shadow = None;
+    preview
+}
+
 fn build_palette(renderer: &Renderer, config: &RenderConfig) -> Palette {
     let themes = renderer.themes();
     let chrome = themes
@@ -1098,6 +1134,16 @@ mod tests {
         assert_eq!(shell_quote(""), "''");
         assert_eq!(shell_quote("Solarized (dark)"), "'Solarized (dark)'");
         assert_eq!(shell_quote("it's"), r"'it'\''s'");
+    }
+
+    #[test]
+    fn the_preview_config_drops_the_shadow_and_leaves_the_original_alone() {
+        let config = RenderConfig::default();
+        assert!(config.shadow.is_some());
+        let preview = preview_config(&config);
+        assert!(preview.shadow.is_none());
+        assert_eq!(preview.scale, PREVIEW_SCALE);
+        assert!(config.shadow.is_some());
     }
 
     #[test]

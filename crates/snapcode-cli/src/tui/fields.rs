@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 //! The settings model behind the TUI form.
 
-use snapcode_core::config::{Background, GradientStop, RenderConfig, ShadowConfig, TrafficLights};
+use snapcode_core::config::{Background, GradientStop, RenderConfig, TrafficLights};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Field {
@@ -23,8 +23,6 @@ pub enum Field {
     Titlebar,
     TrafficLights,
     Border,
-    Shadow,
-    ShadowBlur,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -65,8 +63,6 @@ pub const FIELDS: &[Field] = &[
     Field::Titlebar,
     Field::TrafficLights,
     Field::Border,
-    Field::Shadow,
-    Field::ShadowBlur,
 ];
 
 #[derive(Debug, Clone, Copy)]
@@ -113,8 +109,6 @@ impl Field {
             Field::Titlebar => "Titlebar",
             Field::TrafficLights => "Traffic lights",
             Field::Border => "Border",
-            Field::Shadow => "Shadow",
-            Field::ShadowBlur => "Shadow blur",
             Field::LineNumbers => "Line numbers",
             Field::GutterSeparator => "Gutter rule",
             Field::Diff => "Diff mode",
@@ -152,11 +146,6 @@ impl Field {
                 TrafficLights::None => "none".into(),
             },
             Field::Border => on_off(config.window.border),
-            Field::Shadow => on_off(config.shadow.is_some()),
-            Field::ShadowBlur => match &config.shadow {
-                Some(s) => format!("{:.0}", s.blur),
-                None => "-".into(),
-            },
             Field::LineNumbers => on_off(config.gutter.enabled),
             Field::GutterSeparator => on_off(config.gutter.separator),
             Field::Diff => on_off(config.code.diff),
@@ -228,17 +217,6 @@ impl Field {
                 config.window.traffic_lights = ORDER[wrap(index, delta, ORDER.len())];
             }
             Field::Border => config.window.border = !config.window.border,
-            Field::Shadow => {
-                config.shadow = match config.shadow {
-                    Some(_) => None,
-                    None => Some(ShadowConfig::default()),
-                }
-            }
-            Field::ShadowBlur => {
-                if let Some(shadow) = &mut config.shadow {
-                    shadow.blur = step(shadow.blur, delta as f32 * 4.0, 0.0, 200.0);
-                }
-            }
             Field::LineNumbers => config.gutter.enabled = !config.gutter.enabled,
             Field::GutterSeparator => {
                 config.gutter.separator = !config.gutter.separator;
@@ -259,7 +237,6 @@ impl Field {
             self,
             Field::Ligatures
                 | Field::Border
-                | Field::Shadow
                 | Field::LineNumbers
                 | Field::GutterSeparator
                 | Field::Diff
@@ -571,15 +548,6 @@ mod tests {
 
         adjust(&mut config, Field::Titlebar, 1);
         assert_eq!(config.window.titlebar_height, Some(50.0));
-    }
-
-    #[test]
-    fn shadow_blur_is_inert_without_a_shadow() {
-        let mut config = RenderConfig::default();
-        config.shadow = None;
-        adjust(&mut config, Field::ShadowBlur, 1);
-        assert!(config.shadow.is_none(), "must not resurrect the shadow");
-        assert_eq!(Field::ShadowBlur.value(&config, &CTX), "-");
     }
 
     #[test]
